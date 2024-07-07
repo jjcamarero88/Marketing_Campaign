@@ -18,6 +18,7 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder
 import matplotlib.colors 
 from collections import Counter
+import datetime as dt
 cmap2 = cm.get_cmap('twilight',13)
 colors1= []
 for i in range(cmap2.N):
@@ -219,3 +220,153 @@ sns.barplot(x='Period',y='Total_purchase',data=df,palette="mako")
 plt.xlabel('Period of Birth')
 plt.ylabel('Total Purchase/Spendings')
 plt.show()
+
+
+#Calculate Age of each Customer
+df['Age'] = 2024 - df["Year_Birth"]
+
+# Histplot by Age
+plt.figure(figsize=(30, 8))
+plt.title('Age distribution')
+ax = sns.histplot(df['Age'].sort_values(), bins=45)
+plt.xticks(np.linspace(df['Age'].min(), df['Age'].max(), 45, dtype=int, endpoint = True))
+plt.grid(False)
+plt.show()
+
+#Income distribution comparing Complain using a continous distribution.
+plt.figure(figsize=(15,7))
+sns.kdeplot(
+   data=df, x="Income", hue="Complain", log_scale= True,
+   fill=True, common_norm=False,palette='crest',
+   alpha=.5, linewidth=0,
+)
+plt.xlabel('Income')
+plt.show()
+
+#Income distribution comparing Kids at home using a continous distribution.
+plt.figure(figsize=(15,7))
+sns.kdeplot(
+   data=df, x="Income", hue="Kidhome", log_scale= True,
+   fill=True, common_norm=False,palette='mako',
+   alpha=.5, linewidth=0,
+)
+plt.xlabel('Income')
+plt.show()
+
+#HeatMap 
+# Dropping two constant variables Z_CostContact and Z_Revenue
+df_drop = df.drop(['Z_CostContact', 'Z_Revenue'], axis=1)
+
+# Selecting only numeric columns
+numeric_df = df_drop.select_dtypes(include=[float, int])
+
+# HeatMap plot
+df_corr = numeric_df.corr()
+plt.figure(figsize=(20, 18)) 
+sns.heatmap(data=df_corr, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0, square=True, linewidths=0.5)
+plt.title('Correlation Heatmap')
+plt.show()
+
+# Grouping Education 
+df['Education']=df['Education'].str.replace('Graduation','Higher Education')
+df['Education']=df['Education'].str.replace('PhD','Higher Education')
+df['Education']=df['Education'].str.replace('Master','Higher Education')
+df['Education']=df['Education'].str.replace('2n Cycle','Higher Education')
+
+# Goruping Marital Status
+df['Marital_Status']=df['Marital_Status'].str.replace('Married','In A Relationship')
+df['Marital_Status']=df['Marital_Status'].str.replace('Together','In A Relationship')
+df['Marital_Status']=df['Marital_Status'].str.replace('Divorced','Single')
+df['Marital_Status']=df['Marital_Status'].str.replace('Widow','Single')
+df['Marital_Status']=df['Marital_Status'].str.replace('Alone','Single')
+df['Marital_Status']=df['Marital_Status'].str.replace('Absurd','Single')
+df['Marital_Status']=df['Marital_Status'].str.replace('YOLO','Single')
+
+# Grouping Kids
+df['Total_child']=df['Kidhome']+df['Teenhome']
+
+# Campaign
+df['Camp_total']=df['AcceptedCmp1']+df['AcceptedCmp2']+df['AcceptedCmp3'] +df['AcceptedCmp4']+df['AcceptedCmp5'] +df['Response']
+
+# Removing Outliers
+df=df.loc[np.abs(stats.zscore(df['Income']))<3]
+df.reset_index(inplace=True)
+df=df.drop(columns=['index'])  
+print(df.shape)
+
+# Label Encoding the Data (Education and Marital Status Column)
+cols=["Age","Education", "Marital_Status","Income", "Camp_total", 'Total_child','Total_purchase']
+c_df=df[cols]
+l=LabelEncoder()
+c_df['Education']=c_df[['Education']].apply(l.fit_transform)
+c_df['Marital_Status']=c_df[['Marital_Status']].apply(l.fit_transform)
+# Standard Scaling
+ss=StandardScaler()
+c_df_final=ss.fit_transform(c_df)
+
+#Optimum no of Clusters
+l1=[]
+for i in range(1,13):
+    k_mean=KMeans(n_clusters=i,random_state=32,init="k-means++")
+    k_mean.fit(c_df_final)
+    l1.append(k_mean.inertia_)
+plt.plot(range(1,13),l1)
+plt.scatter(range(1,13),l1,color="red")
+plt.show()
+
+# Kmeans (4 Clusters)
+km=KMeans(n_clusters=4,random_state=0,init="k-means++")
+km.fit(c_df_final)
+clusters=km.predict(c_df_final)
+c_df['cluster_no'] = clusters
+
+#plot
+plt.figure(figsize=(10,7))
+plt.scatter(df['Income'],df['Total_purchase'],c=clusters, cmap='icefire')
+plt.xlabel('Income')
+plt.ylabel('Total Purchase')
+plt.grid(False)
+plt.show()
+
+#print number of customers under each cluster
+print(c_df['cluster_no'].value_counts())
+
+#Print the spending and Income mean by Cluster
+print("Cluster 0 Total Spending: ", c_df.loc[c_df['cluster_no']== 0 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 1 Total Spending: ",c_df.loc[c_df['cluster_no']== 1 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 2 Total Spending: ",c_df.loc[c_df['cluster_no']== 2 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 3 Total Spending: ",c_df.loc[c_df['cluster_no']== 3 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 0 Income: ",c_df.loc[c_df['cluster_no']== 0 ,['Income'] ].mean()['Income'])
+print("Cluster 1 Income: ",c_df.loc[c_df['cluster_no']== 1 ,['Income'] ].mean()['Income'])
+print("Cluster 2 Income: ",c_df.loc[c_df['cluster_no']== 2 ,['Income'] ].mean()['Income'])
+print("Cluster 3 Income: ",c_df.loc[c_df['cluster_no']== 3 ,['Income'] ].mean()['Income'])
+
+
+# Kmeans (5 Clusters)
+km=KMeans(n_clusters=5,random_state=0,init="k-means++")
+km.fit(c_df_final)
+clusters=km.predict(c_df_final)
+c_df['cluster_no'] = clusters
+
+#plot
+plt.figure(figsize=(10,7))
+plt.scatter(df['Income'],df['Total_purchase'],c=clusters, cmap='icefire')
+plt.xlabel('Income')
+plt.ylabel('Total Purchase')
+plt.grid(False)
+plt.show()
+
+#print number of customers under each cluster
+print(c_df['cluster_no'].value_counts())
+
+#Print the spending and Income mean by Cluster
+print("Cluster 0 Total Spending: ", c_df.loc[c_df['cluster_no']== 0 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 1 Total Spending: ",c_df.loc[c_df['cluster_no']== 1 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 2 Total Spending: ",c_df.loc[c_df['cluster_no']== 2 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 3 Total Spending: ",c_df.loc[c_df['cluster_no']== 3 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 4 Total Spending: ",c_df.loc[c_df['cluster_no']== 4 ,['Total_purchase'] ].mean()['Total_purchase'])
+print("Cluster 0 Income: ",c_df.loc[c_df['cluster_no']== 0 ,['Income'] ].mean()['Income'])
+print("Cluster 1 Income: ",c_df.loc[c_df['cluster_no']== 1 ,['Income'] ].mean()['Income'])
+print("Cluster 2 Income: ",c_df.loc[c_df['cluster_no']== 2 ,['Income'] ].mean()['Income'])
+print("Cluster 3 Income: ",c_df.loc[c_df['cluster_no']== 3 ,['Income'] ].mean()['Income'])
+print("Cluster 4 Income: ",c_df.loc[c_df['cluster_no']== 4 ,['Income'] ].mean()['Income'])
